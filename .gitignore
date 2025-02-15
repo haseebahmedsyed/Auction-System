@@ -1,0 +1,10 @@
+Api Gateway/.env
+Auction Service/.env
+Bidding Service/.env
+User Service/.env
+
+
+Api Gateway/node_modules
+Auction Service/node_modules
+Bidding Service/node_modules
+User Service/node_modules
