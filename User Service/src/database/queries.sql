@@ -15,7 +15,8 @@ CREATE TABLE users (
     phone VARCHAR(15) NOT NULL,  -- Phone number with a max length of 15
     address VARCHAR(255) NOT NULL,  -- Address with a reasonable length
     username VARCHAR(50) NOT NULL,  -- Username with a max length of 50
-    role user_role DEFAULT 'bidder' NOT NULL,  -- Use ENUM type for role
+    email VARCHAR(50) NOT NULL,
+    isseller BOOLEAN DEFAULT false,
     password VARCHAR(255) NOT NULL,  -- Password hash with sufficient length
     fullname VARCHAR(100) NOT NULL,  -- Full name with max length of 100
     createdat TIMESTAMP DEFAULT NOW(),  -- Timestamp for creation

@@ -8,8 +8,8 @@ exports.validateToken = (roles) => (req, res, next) => {
             if (err) {
                 return res.status(400).json({ isError: true, message: 'Authentication failed' });
             }
-            if (!roles.includes(decoded.data.role))
-                return res.status(400).json({ isError: true, message: 'Authentication failed' });
+            // if (!roles.includes(decoded.data.role))
+            //     return res.status(400).json({ isError: true, message: 'Authentication failed' });
 
             req.loggedInUser = decoded.data;
             return next();

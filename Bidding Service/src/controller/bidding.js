@@ -20,13 +20,13 @@ exports.placeBid = async (req, res) => {
 
             if (auction && Object.keys(auction).length > 0) {
                 cachedAuction = auction;
-                await Redis.setValue(`auction-${auctionid}`, cachedAuction);
+                await Redis.setValue(`auction-${auctionid}`, cachedAuction, 30 * 60 * 1000);
             }
             else {
                 return res.status(404).json({ isError: true, message: "Auction not found." });
             }
         }
-        console.log("cachedAuction ",cachedAuction)
+        console.log("cachedAuction ", cachedAuction)
         if (cachedAuction.status == "closed") {
             return res.status(400).json({ isError: true, message: "Auction is not open anymore." });
         }
@@ -39,3 +39,41 @@ exports.placeBid = async (req, res) => {
         return res.status(500).json({ isError: true, message: "Internal server error." });
     }
 };
+
+exports.getAuctioBids = async (req, res) => {
+    try {
+        let auctionid = req.params.auctionid;
+        let bids = [];
+
+        let result = await Database.query(
+            'SELECT * FROM bids WHERE auctionid = $1 ORDER BY (price) DESC',
+            [auctionid]
+        );
+
+        if (result?.rows?.length > 0) {
+            bids = result?.rows
+        };
+
+        return res.status(200).json({ isError: false, bids })
+
+    } catch (error) {
+        return res.status(500).json({ isError: true, message: "Internal server error" })
+    }
+}
+
+
+exports.getBidDetails = async (req, res) => {
+    try {
+        let bidid = req.params.bidid
+        let bidDetails = null;
+        let response = await Database.query(`SELECT * FROM bids WHERE bidid = $1`, [bidid]);
+
+        if (response?.rows?.length > 0)
+            bidDetails = response.rows[0];
+
+        return res.status(200).json({ isError: false, bid: bidDetails })
+    } catch (error) {
+        console.log(error)
+        return res.status(500).json({ isError: true, message: "Internal server error" })
+    }
+}

@@ -47,10 +47,10 @@ class Redis {
         }
     }
 
-    async setValue(key, value) {
+    async setValue(key, value, expireat) {
         try {
             await this.connectionPromise; // Ensure connection is established
-            await this.client.set(key, value);
+            await this.client.set(key, value, { EX: expireat });
         } catch (error) {
             console.error('Error in setting value:', error);
         }

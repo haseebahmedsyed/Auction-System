@@ -9,4 +9,7 @@ const PURPOSE = {
     AUTHENTICATION: 'authentication'
 }
 
-module.exports = { ROLE, PURPOSE }
+const PubSubChannels = {
+    UPDATE_CUSTOMER_PAYMENT_INFO: 'UPDATE_CUSTOMER_PAYMENT_INFO'
+}
+module.exports = { ROLE, PURPOSE, PubSubChannels }

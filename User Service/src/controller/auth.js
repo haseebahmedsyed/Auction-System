@@ -2,6 +2,7 @@ const bcrypt = require('bcrypt')
 const Database = require('./../database/connection')
 const { getJsonWebToken } = require('./../utils/helper')
 const Constant = require('../utils/constants')
+const Redis = require('./../database/redis')
 
 exports.handleLogin = async (req, res) => {
     const { username, password } = req.body;
@@ -58,7 +59,8 @@ exports.handleLogin = async (req, res) => {
 };
 
 exports.handleRegistration = async (req, res) => {
-    const { username, fullname, password, address, phone } = req.body;
+    console.log("req.body ", req.body)
+    const { username, fullname, password, address, phone, email, customerId, paymentmethodid } = req.body;
 
     try {
         // Use WITH clause to check username existence and insert user if not exists
@@ -66,10 +68,10 @@ exports.handleRegistration = async (req, res) => {
             WITH username_check AS (
                 SELECT 1 FROM users WHERE username = $1 LIMIT 1
             ), insert_user AS (
-                INSERT INTO users (username, fullname, password, address, phone)
-                SELECT $1, $2, $3, $4, $5
+                INSERT INTO users (username, fullname, password, address, phone,email)
+                SELECT $1, $2, $3, $4, $5, $6
                 WHERE NOT EXISTS (SELECT 1 FROM username_check)
-                RETURNING username, fullname, address, phone
+                RETURNING username, fullname, address, phone, email, userid
             )
             SELECT * FROM insert_user;
         `;
@@ -78,14 +80,18 @@ exports.handleRegistration = async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, 10);
 
         // Execute the query
-        const { rows } = await Database.query(query, [username, fullname, hashedPassword, address, phone]);
+        const { rows } = await Database.query(query, [username, fullname, hashedPassword, address, phone, email]);
 
+        console.log("ROWS : ",rows)
         if (rows.length === 0) {
             return res.json({ isError: true, message: 'Unable to process your request. Please check the provided details.' });
         }
 
         // Respond with the created user details
         const user = rows[0];
+
+        await Redis.publishMessage(Constant.PubSubChannels.UPDATE_CUSTOMER_PAYMENT_INFO, { userid: user.userid, customerid: customerId, paymentmethodid })
+
         res.status(200).json({ isError: false, message: 'Successfully registered.', user });
 
     } catch (error) {

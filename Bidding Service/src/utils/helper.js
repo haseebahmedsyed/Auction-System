@@ -20,3 +20,7 @@ exports.queryAuction = async (auctionid) => {
     );
     return data;
 }
+
+exports.sendNotification = () => {
+
+}

@@ -2,8 +2,12 @@ const SubscribeChannels = {
     UPDATE_AUCTION: 'UPDATE_AUCTION'
 }
 
-const QueueNames = {
-    AUCTION_EXPIRE:'auction-expire'
+const PublishCannels = {
+    PROCESS_AUCTION_PAYMENT: 'PROCESS_AUCTION_PAYMENT'
 }
 
-module.exports = { SubscribeChannels,QueueNames }
+const QueueNames = {
+    AUCTION_EXPIRE: 'auction-expire'
+}
+
+module.exports = { SubscribeChannels, QueueNames, PublishCannels }

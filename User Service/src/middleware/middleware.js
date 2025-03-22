@@ -1,6 +1,8 @@
 const jwt = require('jsonwebtoken');
 
 exports.validateRegistrationToken = (req, res, next) => {
+    console.log("Incoming Headers:", req.headers);
+    console.log("Incoming Cookies:", req.cookies);
     if (req.cookies && req.cookies.regtoken) {
         let registrationToken = req.cookies.regtoken;
         jwt.verify(registrationToken, process.env.OTP_SECRECT, function (err, decoded) {

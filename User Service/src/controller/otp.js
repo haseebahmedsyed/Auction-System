@@ -63,10 +63,8 @@ exports.verifyOtp = async (req, res) => {
         if (isOtpValid) {
             let token = getJsonWebToken({ contact, otp }, Constant.PURPOSE.REGISTRATION);
             return res.cookie('regtoken', token, {
-                httpOnly: true,  // Prevents client-side scripts from accessing the cookie
-                secure: process.env.NODE_ENV === "production",    // Ensures cookie is sent over HTTPS (recommended in production)
-                maxAge: 15 * 60 * 1000, // 1 day in milliseconds
-                sameSite: 'strict', // Protect against CSRF
+                httpOnly: true, 
+                expires: new Date(Date.now() + (7 * 24 * 60 * 60 * 1000)),
             }).status(200).json({ isError: false, message: 'Validation Successfull' });
         }
 

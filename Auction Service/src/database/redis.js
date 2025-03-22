@@ -47,7 +47,7 @@ class Redis {
 
     async setValue(key, value, expireat) {
         try {
-            await this.commandClient.set(key, value, {  EX: expireat });
+            await this.commandClient.set(key, value, { EX: expireat });
         } catch (error) {
             console.log('Error in setting value:', error);
         }
@@ -61,6 +61,17 @@ class Redis {
             console.log('Error in getting value:', error);
         }
     }
+
+    async publishMessage(channelName, message) {
+        try {
+            await this.connectionPromise; // Ensure connection is established
+            await this.commandClient.publish(channelName, JSON.stringify(message));
+            console.log(`Published message to channel "${channelName}":`, message);
+        } catch (error) {
+            console.error('Error in publishing message:', error);
+        }
+    }
+
 
     async subscribeChannels() {
         await this.connectionPromise; // Ensure connections are established
