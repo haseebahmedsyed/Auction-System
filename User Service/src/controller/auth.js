@@ -4,6 +4,18 @@ const { getJsonWebToken } = require('./../utils/helper')
 const Constant = require('../utils/constants')
 const Redis = require('./../database/redis')
 
+exports.saveUserAsSeller = async (data) => {
+    try {
+        const { userid } = data;
+        const query = `
+            UPDATE users SET isseller = true where userid = $1
+        `
+        await Database.query(query, [userid])
+    } catch (error) {
+        console.log("error while updating user as a seller ",error)
+    }
+}
+
 exports.handleLogin = async (req, res) => {
     const { username, password } = req.body;
 
@@ -82,7 +94,7 @@ exports.handleRegistration = async (req, res) => {
         // Execute the query
         const { rows } = await Database.query(query, [username, fullname, hashedPassword, address, phone, email]);
 
-        console.log("ROWS : ",rows)
+        console.log("ROWS : ", rows)
         if (rows.length === 0) {
             return res.json({ isError: true, message: 'Unable to process your request. Please check the provided details.' });
         }
@@ -90,7 +102,7 @@ exports.handleRegistration = async (req, res) => {
         // Respond with the created user details
         const user = rows[0];
 
-        await Redis.publishMessage(Constant.PubSubChannels.UPDATE_CUSTOMER_PAYMENT_INFO, { userid: user.userid, customerid: customerId, paymentmethodid })
+        await Redis.publishMessage(Constant.PublishChannels.UPDATE_CUSTOMER_PAYMENT_INFO, { userid: user.userid, customerid: customerId, paymentmethodid })
 
         res.status(200).json({ isError: false, message: 'Successfully registered.', user });
 
@@ -99,3 +111,4 @@ exports.handleRegistration = async (req, res) => {
         res.status(500).json({ isError: true, message: 'Internal Server Error' });
     }
 };
+

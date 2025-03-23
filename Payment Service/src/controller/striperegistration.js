@@ -1,7 +1,7 @@
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const Constants = require('../utils/constants.js');
 const Database = require('../database/connection.js')
-
+const Redis = require('./../database/redis.js')
 exports.registerUserToStripe = async (req, res) => {
 
     const { email, userid } = req.body;
@@ -20,6 +20,8 @@ exports.registerUserToStripe = async (req, res) => {
         const sellerAccountId = account.id;
 
         await Database.query(`INSERT INTO seller (userid, stripeid) VALUES ($1,$2)`, [userid, sellerAccountId])
+
+        await Redis.publishMessage(Constants.PublishChannels.MARK_USER_AS_SELLER, { userid })
 
         res.json({ accountId: sellerAccountId });
     } catch (error) {

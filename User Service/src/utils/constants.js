@@ -9,7 +9,11 @@ const PURPOSE = {
     AUTHENTICATION: 'authentication'
 }
 
-const PubSubChannels = {
-    UPDATE_CUSTOMER_PAYMENT_INFO: 'UPDATE_CUSTOMER_PAYMENT_INFO'
+const PublishChannels = {
+    UPDATE_CUSTOMER_PAYMENT_INFO: 'UPDATE_CUSTOMER_PAYMENT_INFO',
 }
-module.exports = { ROLE, PURPOSE, PubSubChannels }
+
+const SubscribedChannels = {
+    MARK_USER_AS_SELLER: 'MARK_USER_AS_SELLER'
+}
+module.exports = { ROLE, PURPOSE, PublishChannels, SubscribedChannels }

@@ -12,8 +12,8 @@ class Redis {
         this.connectionPromise = this.connect();
 
         this.functionMapping = {
-            [Constants.PubSubChannels.UPDATE_CUSTOMER_PAYMENT_INFO]: (msg) => registerCustomer(msg),
-            [Constants.PubSubChannels.PROCESS_AUCTION_PAYMENT]: (msg) => processPayment(msg),
+            [Constants.SubscribedChannels.UPDATE_CUSTOMER_PAYMENT_INFO]: (msg) => registerCustomer(msg),
+            [Constants.SubscribedChannels.PROCESS_AUCTION_PAYMENT]: (msg) => processPayment(msg),
         };
     }
 
@@ -60,6 +60,16 @@ class Redis {
             return value;
         } catch (error) {
             console.log('Error in getting value:', error);
+        }
+    }
+
+    async publishMessage(channelName, message) {
+        try {
+            await this.connectionPromise; // Ensure connection is established
+            await this.commandClient.publish(channelName, JSON.stringify(message));
+            console.log(`Published message to channel "${channelName}":`, message);
+        } catch (error) {
+            console.error('Error in publishing message:', error);
         }
     }
 

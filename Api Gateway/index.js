@@ -22,13 +22,6 @@ const commonProxyOptions = {
   changeOrigin: true,
   on: {
     proxyRes: (proxyRes, req, res) => {
-      // const proxyCookies = proxyRes.headers["set-cookie"];
-      // if (proxyCookies) {
-      //   // Ensure cookies are properly formatted and forwarded
-      //   res.setHeader("set-cookie", proxyCookies.map(cookie => {
-      //     return cookie.split(';')[0] + '; SameSite=None; Secure';
-      //   }));
-      // }
     },
     error: (err, req, res) => {
       console.error("Proxy error:", err.message);
