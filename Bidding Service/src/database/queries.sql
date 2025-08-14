@@ -6,5 +6,8 @@ CREATE TABLE bids (
     updatedat TIMESTAMP NOT NULL DEFAULT NOW(),
     price VARCHAR(100) NOT NULL,
     auctionid UUID NOT NULL,
+    iswinner BOOLEAN DEFAULT FALSE,
+    paymentstatus VARCHAR(20) DEFAULT 'unpaid',
+    disqualificationreason VARCHAR(100) DEFAULT NULL,
     CONSTRAINT unique_bidid UNIQUE(bidid)
 );

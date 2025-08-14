@@ -1,4 +1,5 @@
 const express = require('express');
+const path = require('path');
 const Database = require('./src/database/connection');
 var bodyParser = require('body-parser')
 const auctionRoute = require('./src/routes/auction')
@@ -15,6 +16,8 @@ app.use(bodyParser.urlencoded({ extended: false }))
 app.use(bodyParser.json())
 
 app.use(auctionRoute);
+
+app.use('/uploads', express.static(path.join(__dirname, '/uploads')));
 
 Redis.subscribeChannels()
 

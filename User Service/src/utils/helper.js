@@ -1,6 +1,7 @@
 const Database = require('./../database/connection');
 const jwt = require('jsonwebtoken')
 const Constants = require('./constants')
+const authSecretPrivateKey = process.env.AUTH_SECRET.replace(/\\n/g, '\n');
 
 exports.checkOtpValidation = async (contact, otp) => {
     let selectedOtpRecord = await Database.query("SELECT otp,expiration FROM otp WHERE contact=$1 AND otp=$2", [contact, otp]);
@@ -26,7 +27,7 @@ exports.getJsonWebToken = (data, purpose) => {
     } else if (purpose == Constants.PURPOSE.AUTHENTICATION) {
         let token = jwt.sign({
             data: data
-        }, process.env.AUTH_SECRET, { expiresIn: '1h' });
+        }, authSecretPrivateKey, { expiresIn: '1h', algorithm: 'RS256' });
 
         return token;
     }

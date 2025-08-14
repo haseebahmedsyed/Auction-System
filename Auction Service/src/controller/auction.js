@@ -2,9 +2,24 @@ const Database = require('./../database/connection')
 const Redis = require('./../database/redis')
 const Constants = require('./../utils/constants.js')
 const bullMQ = require('./../bullmq/BullMQManager.js');
+const { getJsonWebToken } = require('./../utils/helper.js')
+const axios = require('axios')
+
+
+exports.checkJobExists = async (req, res) => {
+    const { auctionId, bidId } = req.body;
+    const jobExists = await bullMQ.jobExists(Constants.QueueNames.EMAIL_SENDER, `${auctionId}:${bidId}`);
+    return res.status(200).json({ isError: false, jobExists });
+}
+
 
 exports.createAuction = async (req, res) => {
-    const { title, description, endtime, startprice } = req.body;
+    const { title, description, endtime, startprice, category } = req.body;
+    const userid = req.headers.userid
+
+    if (!title || !description || !endtime || !startprice || !category)
+        return res.status(400).json({ isError: true, message: "Incomplete auction details." })
+
 
     try {
         //check if end time is valid
@@ -13,10 +28,14 @@ exports.createAuction = async (req, res) => {
             return res.status(400).json({ isError: true, message: "Invalid auction expiry." })
         }
 
+        if ((endTimeInMilliSeconds - Date.now()) > (1 * 24 * 60 * 60 * 1000)) {
+            return res.status(400).json({ isError: true, message: "Expire time must not exceed one day." })
+        }
+
         // Create auction record and return auction data
         const auctionResult = await Database.query(
-            "INSERT INTO auctions (title, description, endtime, startprice, createdby) VALUES ($1, $2, $3, $4, $5) RETURNING *",
-            [title, description, endtime, startprice, req.loggedInUser.userid]
+            "INSERT INTO auctions (title, description, endtime, startprice, createdby, category) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
+            [title, description, endtime, startprice, userid, category]
         );
 
         console.log("auction result ", auctionResult)
@@ -80,6 +99,19 @@ exports.createAuction = async (req, res) => {
     }
 };
 
+
+const getListOfBidsAndHighestBid = async (auctionid) => {
+    let { data } = await axios.get(`http://localhost:8989/bidding-service/get-bids/${auctionid}`,
+        {
+            headers: {
+                'servicetoken': getJsonWebToken({ auctionid })  // Forward HTTP-only cookies from client request
+            },
+            withCredentials: true
+        }
+    );
+    return [data?.bids ?? [], data?.highestBid ?? {}]
+}
+
 exports.getAuction = async (req, res) => {
     try {
         const auctionid = req.params.id;
@@ -96,7 +128,16 @@ exports.getAuction = async (req, res) => {
             a.endtime,
             a.startprice,
             a.createdby,
-            COALESCE(JSON_AGG(i.imageurl) FILTER (WHERE i.imageurl IS NOT NULL), '[]'::json) AS images
+            COALESCE(
+                JSON_AGG(
+                    CASE 
+                        WHEN i.imageurl IS NOT NULL 
+                        THEN 'http://localhost:9091/' || REPLACE(i.imageurl, '\\', '/')
+                        ELSE NULL 
+                    END
+                ) FILTER (WHERE i.imageurl IS NOT NULL),
+                '[]'::json
+            ) AS images
         FROM auction a
         LEFT JOIN itemimages i ON a.auctionid = i.auctionid
         GROUP BY
@@ -107,6 +148,7 @@ exports.getAuction = async (req, res) => {
             a.endtime,
             a.startprice,
             a.createdby;
+
         `
 
         const result = await Database.query(query, [auctionid]);
@@ -117,10 +159,61 @@ exports.getAuction = async (req, res) => {
             return res.status(404).json({ isError: true, message: "Auction not found" });
         }
 
-        return res.status(200).json({ isError: false, auction });
+        const [bids, highestBid] = await getListOfBidsAndHighestBid(auction?.auctionid);
+
+        return res.status(200).json({ isError: false, auction: { ...auction, bids, highestBid } });
     } catch (error) {
         console.error("Error fetching auction:", error);
         return res.status(500).json({ isError: true, message: "Internal server error" });
     }
 };
 
+exports.getAllAuctions = async (req, res) => {
+    try {
+        const query =
+            `
+            WITH auction AS (
+                SELECT * FROM auctions
+            )
+            SELECT
+                a.auctionid,
+                a.status,
+                a.title,
+                a.description,
+                a.endtime,
+                a.startprice,
+                a.createdby,
+                a.category,
+                COALESCE(
+                    JSON_AGG(
+                        CASE 
+                            WHEN i.imageurl IS NOT NULL 
+                            THEN 'http://localhost:9091/' || REPLACE(i.imageurl, '\\', '/')
+                            ELSE NULL 
+                        END
+                    ) FILTER (WHERE i.imageurl IS NOT NULL),
+                    '[]'::json
+                ) AS images
+            FROM auction a
+            LEFT JOIN itemimages i ON a.auctionid = i.auctionid
+            GROUP BY
+                a.auctionid,
+                a.status,
+                a.title,
+                a.description,
+                a.endtime,
+                a.startprice,
+                a.category,
+                a.createdby;
+
+    `
+        const result = await Database.query(query);
+        return res.status(200).json({ isError: false, auction: result?.rows ?? [] });
+    } catch (error) {
+        console.error("Error getting auctions:", error);
+        return res.status(500).json({
+            isError: true,
+            message: "Something went wrong."
+        });
+    }
+}

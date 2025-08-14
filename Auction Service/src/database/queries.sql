@@ -4,6 +4,7 @@ CREATE TABLE auctions (
     title VARCHAR(50) NOT NULL,
     description VARCHAR(250) NOT NULL,
     status auctionstatus DEFAULT 'open' NOT NULL,
+    category auction_category NOT NULL,
     starttime TIMESTAMP NOT NULL DEFAULT NOW(),
     endtime TIMESTAMP NOT NULL,
     startprice VARCHAR(100) NOT NULL,

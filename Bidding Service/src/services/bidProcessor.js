@@ -26,13 +26,12 @@ class BidProcessor {
             cachedAuction = auction;
             await this.redisClient.setValue(auctionKey, JSON.stringify(auction), 30 * 60 * 1000);
         }
-
+        // console.log(bid.amount, cachedAuction.startprice)
         //if start price is less than bid amount then return
         if (Number(bid.amount) < Number(cachedAuction.startprice))
             return;
 
         // Check if there's an existing winning bid and compare prices
-
         let auctionCurrentHighestBid
         if (cachedAuction.winningbidid) {
             auctionCurrentHighestBid = await this.redisClient.getValue(auctionCurrentHighestBidKey);
@@ -71,7 +70,7 @@ class BidProcessor {
             auctionid: bid.auctionid,
         });
 
-        io.braodcastAuctionMessage(cachedAuction.auctionid, { ...cachedAuction, 'highestBidDetails': newBid ?? {} })
+        io.braodcastAuctionMessage(cachedAuction.auctionid, { ...cachedAuction, 'highestBid': newBid ?? {} })
     }
 }
 

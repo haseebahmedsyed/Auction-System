@@ -1,4 +1,5 @@
 const Database = require('./../database/connection')
+const jwt = require('jsonwebtoken')
 
 exports.updateAuction = async (data) => {
     try {
@@ -31,3 +32,11 @@ exports.updateAuction = async (data) => {
         throw error; // Rethrow the error for further handling
     }
 };
+
+exports.getJsonWebToken = (data) => {
+    let token = jwt.sign({
+        data: data
+    }, process.env.SERVICE_TOKEN, { expiresIn: 15 * 60 * 1000 });
+
+    return token;
+}

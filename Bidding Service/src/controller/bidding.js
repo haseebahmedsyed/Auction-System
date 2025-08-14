@@ -3,12 +3,14 @@ const Redis = require("../services/redis")
 const Constants = require("./../utils/constants")
 const { queryAuction } = require('./../utils/helper')
 
+var count = 0;
 
 exports.placeBid = async (req, res) => {
+    console.log("place bid ", count++)
     try {
         const { price } = req.body;
         const { auctionid } = req.params;
-        const userId = req.loggedInUser.userid;
+        const userId = req.headers.userid;
 
         // Retrieve and parse cached auction data
         const cachedAuction = JSON.parse(await Redis.getValue(`auction-${auctionid}`));
@@ -26,7 +28,6 @@ exports.placeBid = async (req, res) => {
                 return res.status(404).json({ isError: true, message: "Auction not found." });
             }
         }
-        console.log("cachedAuction ", cachedAuction)
         if (cachedAuction.status == "closed") {
             return res.status(400).json({ isError: true, message: "Auction is not open anymore." });
         }
@@ -43,21 +44,27 @@ exports.placeBid = async (req, res) => {
 exports.getAuctioBids = async (req, res) => {
     try {
         let auctionid = req.params.auctionid;
-        let bids = [];
 
-        let result = await Database.query(
-            'SELECT * FROM bids WHERE auctionid = $1 ORDER BY (price) DESC',
+        const result = await Database.query(
+            `WITH all_bids AS (
+               SELECT * FROM bids WHERE auctionid = $1
+             ),
+             highest_bid AS (
+               SELECT * FROM all_bids WHERE price::numeric =(SELECT MAX(price::numeric) FROM all_bids) ORDER BY  createdat ASC LIMIT 1
+             )
+             SELECT 
+               (SELECT json_agg(all_bids) FROM all_bids) AS bids,
+               (SELECT row_to_json(highest_bid) FROM highest_bid) AS highest_bid`,
             [auctionid]
         );
 
-        if (result?.rows?.length > 0) {
-            bids = result?.rows
-        };
+        const bids = result.rows[0].bids ?? [];
+        const highestBid = result.rows[0].highest_bid ?? {};
 
-        return res.status(200).json({ isError: false, bids })
+        return res.status(200).json({ isError: false, bids, highestBid })
 
     } catch (error) {
-        return res.status(500).json({ isError: true, message: "Internal server error" })
+        return res.status(500).json({ isError: true, message: "Internal server error", bids: [], highestBid: {} })
     }
 }
 
@@ -75,5 +82,78 @@ exports.getBidDetails = async (req, res) => {
     } catch (error) {
         console.log(error)
         return res.status(500).json({ isError: true, message: "Internal server error" })
+    }
+}
+
+exports.getNextEligibleBidder = async (req, res) => {
+    try {
+        const { auctionid, currentbidid } = req.body;
+
+        // Input validation
+        if (!auctionid || !currentbidid) {
+            return res.status(400).json({ 
+                isError: true, 
+                message: "Auction ID and current bid ID are required" 
+            });
+        }
+
+        // Start a transaction
+        await Database.query('BEGIN');
+
+        try {
+            // Update current bid to disqualified
+            const updateQuery = `
+                UPDATE bids 
+                SET paymentstatus = 'disqualified', 
+                    disqualificationreason = 'payment-expired' 
+                WHERE bidid = $1 
+                RETURNING *`;
+            
+            const updateResult = await Database.query(updateQuery, [currentbidid]);
+            
+            if (updateResult.rows.length === 0) {
+                await Database.query('ROLLBACK');
+                return res.status(404).json({ 
+                    isError: true, 
+                    message: "Current bid not found" 
+                });
+            }
+
+            // Get next eligible bidder
+            const selectQuery = `
+                SELECT * FROM bids 
+                WHERE auctionid = $1 
+                AND price::numeric = (
+                    SELECT MAX(price::numeric) 
+                    FROM bids 
+                    WHERE auctionid = $1 
+                    AND paymentstatus != 'disqualified'
+                ) 
+                ORDER BY createdat ASC 
+                LIMIT 1`;
+            
+            const result = await Database.query(selectQuery, [auctionid]);
+            await Database.query('COMMIT');
+
+            const bidDetails = result.rows[0] || null;
+
+            await Redis.setValue(`bid:${bidDetails?.auctionid ?? ''}`, JSON.stringify(bidDetails ?? {}), 30 * 60 * 1000);
+
+            return res.status(200).json({ 
+                isError: false, 
+                bid: bidDetails,
+                message: bidDetails ? "Next eligible bidder found" : "No eligible bidders found"
+            });
+        } catch (error) {
+            await Database.query('ROLLBACK');
+            throw error;
+        }
+    } catch (error) {
+        console.error("Error in getNextEligibleBidder:", error);
+        return res.status(500).json({ 
+            isError: true, 
+            message: "Internal server error",
+            details: error.message
+        });
     }
 }

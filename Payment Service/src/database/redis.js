@@ -1,6 +1,5 @@
 const { createClient } = require('redis');
 const Constants = require('./../utils/constants');
-const { registerCustomer, processPayment } = require('../controller/striperegistration')
 
 class Redis {
     constructor() {
@@ -12,8 +11,14 @@ class Redis {
         this.connectionPromise = this.connect();
 
         this.functionMapping = {
-            [Constants.SubscribedChannels.UPDATE_CUSTOMER_PAYMENT_INFO]: (msg) => registerCustomer(msg),
-            [Constants.SubscribedChannels.PROCESS_AUCTION_PAYMENT]: (msg) => processPayment(msg),
+            [Constants.SubscribedChannels.UPDATE_CUSTOMER_PAYMENT_INFO]: (msg) => {
+                const { registerCustomer } = require('../controller/striperegistration')
+                registerCustomer(msg)
+            },
+            [Constants.SubscribedChannels.PROCESS_AUCTION_PAYMENT]: (msg) => {
+                const { processPayment } = require('../controller/striperegistration')
+                processPayment(msg)
+            },
         };
     }
 
@@ -75,10 +80,11 @@ class Redis {
 
     async subscribeChannels() {
         await this.connectionPromise; // Ensure connections are established
-        if (this.pubSubClient && Constants.PubSubChannels) {
-            Object.values(Constants.PubSubChannels).forEach((channel) => {
+        if (this.pubSubClient && Constants.SubscribedChannels) {
+            Object.values(Constants.SubscribedChannels).forEach((channel) => {
                 this.pubSubClient.subscribe(channel, (message) => {
                     try {
+                        console.log("Got Massage From ", channel, message)
                         const parsedMessage = JSON.parse(message);
                         const handler = this.functionMapping[channel];
                         if (handler) {

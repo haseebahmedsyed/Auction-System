@@ -3,7 +3,7 @@ const multer = require('multer');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const { validateToken } = require('./../middleware/middleware')
-const { createAuction, getAuction } = require('./../controller/auction')
+const { createAuction, getAuction, getAllAuctions,checkJobExists } = require('./../controller/auction')
 const router = express.Router();
 
 // Configure Multer
@@ -34,7 +34,9 @@ const upload = multer({
     limits: { fileSize: 5 * 1024 * 1024 } // Limit file size to 5MB
 });
 
-router.post('/create-auction', validateToken(['seller', 'bidder']), upload.any('images'), createAuction)
-router.get('/get-auction/:id', validateToken(['seller', 'bidder']), getAuction)
+router.post('/create-auction', validateToken(true), upload.any('images'), createAuction)
+router.get('/get-auction/:id', validateToken(), getAuction)
+router.get('/get-auctions', validateToken(), getAllAuctions)
+router.post('/job-exists', checkJobExists)
 
 module.exports = router;

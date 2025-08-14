@@ -1,7 +1,7 @@
 const bullMQ = require('./BullMQManager.js');
 const os = require('os');
 const Constants = require('./../utils/constants.js')
-const { auctionExpiryProcessor } = require('./helper.js');
+const { auctionExpiryProcessor, emailSenderProcessor } = require('./helper.js');
 const cpuCount = os.cpus().length;
 
 (async () => {
@@ -11,6 +11,10 @@ const cpuCount = os.cpus().length;
       {
         name: Constants.QueueNames.AUCTION_EXPIRE,
         processor: auctionExpiryProcessor,
+      },
+      {
+        name: Constants.QueueNames.EMAIL_SENDER,
+        processor: emailSenderProcessor,
       },
     ];
 

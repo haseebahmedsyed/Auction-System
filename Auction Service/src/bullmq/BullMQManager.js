@@ -38,6 +38,21 @@ class BullMQManager {
   }
 
   /**
+ * Check if a job with the given ID exists in the queue
+ * @param {string} queueName - The name of the queue
+ * @param {string} jobId - The ID of the job to check
+ * @returns {Promise<boolean>} - True if job exists, false otherwise
+ */
+  async jobExists(queueName, jobId) {
+    if (!this.queues[queueName]) {
+      return false;
+    }
+
+    const job = await this.queues[queueName].getJob(jobId);
+    return !!job; // returns true if job exists, false otherwise
+  }
+
+  /**
    * Start multiple workers for the same queue
    * @param {string} queueName - Name of the queue
    * @param {Function} processor - Function to process jobs

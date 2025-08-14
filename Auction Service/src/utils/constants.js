@@ -7,7 +7,8 @@ const PublishCannels = {
 }
 
 const QueueNames = {
-    AUCTION_EXPIRE: 'auction-expire'
+    AUCTION_EXPIRE: 'auction-expire',
+    EMAIL_SENDER: 'email-sender'
 }
 
 module.exports = { SubscribeChannels, QueueNames, PublishCannels }

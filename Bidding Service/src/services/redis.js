@@ -10,18 +10,27 @@ class Redis {
         }
 
         this.client = null;
+        this.valueClient = null;
         Redis.instance = this;
 
+        this.running = true;
         this.connectionPromise = this.connect(); // Initialize connection
         this.BidProcessor = new BidProcessor(this);
 
         this.STREAM_NAME = 'bids_stream';
         this.GROUP_NAME = 'bid_consumers';
         this.CONSUMER_NAME = `worker-${Math.random().toString(36).substring(7)}`;
+
+        this.setupGracefulShutdown();
     }
 
     async connect() {
         try {
+            if (!this.valueClient) {
+                this.valueClient = createClient()
+                    .on('error', (err) => console.log('Redis Client Error', err));
+                await this.valueClient.connect();
+            }
             if (!this.client) {
                 this.client = createClient()
                     .on('error', (err) => console.log('Redis Client Error', err));
@@ -31,6 +40,7 @@ class Redis {
                 // Initialize Redis Stream Group
                 await this.createConsumerGroup();
             }
+
         } catch (err) {
             console.error('Connection error', err.stack);
         }
@@ -42,6 +52,10 @@ class Redis {
                 await this.client.disconnect();
                 console.log('Redis client disconnected');
             }
+            if (this.valueClient) {
+                await this.valueClient.disconnect();
+                console.log('Redis client disconnected');
+            }
         } catch (err) {
             console.error('Error disconnecting', err.stack);
         }
@@ -50,7 +64,7 @@ class Redis {
     async setValue(key, value, expireat) {
         try {
             await this.connectionPromise; // Ensure connection is established
-            await this.client.set(key, value, { EX: expireat });
+            await this.valueClient.set(key, value, { EX: expireat });
         } catch (error) {
             console.error('Error in setting value:', error);
         }
@@ -59,7 +73,7 @@ class Redis {
     async getValue(key) {
         try {
             await this.connectionPromise; // Ensure connection is established
-            const value = await this.client.get(key);
+            const value = await this.valueClient.get(key);
             return value;
         } catch (error) {
             console.error('Error in getting value:', error);
@@ -69,7 +83,7 @@ class Redis {
     async publishMessage(channelName, message) {
         try {
             await this.connectionPromise; // Ensure connection is established
-            await this.client.publish(channelName, JSON.stringify(message));
+            await this.valueClient.publish(channelName, JSON.stringify(message));
             console.log(`Published message to channel "${channelName}":`, message);
         } catch (error) {
             console.error('Error in publishing message:', error);
@@ -93,8 +107,8 @@ class Redis {
         try {
             await this.connectionPromise;
             const bidData = { auctionid, userid, amount, timestamp: Date.now() };
-            await this.client.xAdd(this.STREAM_NAME, '*', { data: JSON.stringify(bidData) });
-            console.log(`Bid added:`, bidData);
+            await this.valueClient.xAdd(this.STREAM_NAME, '*', { data: JSON.stringify(bidData) });
+            // console.log(`Bid added:`, bidData);
         } catch (error) {
             console.error('Error adding bid:', error);
         }
@@ -110,28 +124,28 @@ class Redis {
     async releaseLock(lockKey) {
         await this.client.del(lockKey);
     }
+    
 
     async processBids() {
         await this.connectionPromise;
-
-        while (true) {
+        while (this.running === true) {
             try {
                 const response = await this.client.xReadGroup(
                     this.GROUP_NAME,
                     this.CONSUMER_NAME,
                     [{ key: this.STREAM_NAME, id: '>' }],
-                    { COUNT: 10, BLOCK: 5000 }
+                    { COUNT: 10, BLOCK: 0 }
                 );
-
+                // console.log("response ", response,this.CONSUMER_NAME)
                 if (!response) continue; // No new messages
 
 
                 for (const { messages } of response) {
                     for (const message of messages) {
                         const bid = JSON.parse(message.message.data);
-                        const auctionLockKey = `lock:auction:${bid.auctionId}`;
+                        // const auctionLockKey = `lock:auction:${bid.auctionId}`;
 
-                        if (!(await this.acquireLock(auctionLockKey))) continue; // Skip if lock is held
+                        // if (!(await this.acquireLock(auctionLockKey))) continue; // Skip if lock is held
 
                         try {
                             await this.BidProcessor.processBidLogic(bid);
@@ -139,7 +153,7 @@ class Redis {
                         } catch (error) {
                             console.error('Error processing bid:', error);
                         } finally {
-                            await this.releaseLock(auctionLockKey);
+                            // await this.releaseLock(auctionLockKey);
                         }
                     }
                 }
@@ -147,6 +161,22 @@ class Redis {
                 console.error('Error reading stream:', error);
             }
         }
+    }
+
+    stop() {
+        this.running = false;
+    }
+
+    setupGracefulShutdown() {
+        const shutdown = async () => {
+            console.log('\nGracefully shutting down Redis bid processor...');
+            this.stop();
+            await this.disconnect();
+            process.exit(0);
+        };
+
+        process.on('SIGINT', shutdown);
+        process.on('SIGTERM', shutdown);
     }
 }
 

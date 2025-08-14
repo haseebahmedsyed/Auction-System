@@ -2,6 +2,8 @@ const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const Constants = require('../utils/constants.js');
 const Database = require('../database/connection.js')
 const Redis = require('./../database/redis.js')
+const PaymentRetryService = require('../services/paymentRetryService');
+const { isRetryableError } = require('../utils/retryHelper.js')
 exports.registerUserToStripe = async (req, res) => {
 
     const { email, userid } = req.body;
@@ -118,9 +120,9 @@ const getDetails = async (table, id) => {
     }
 };
 
-exports.processPayment = async (data) => {
+exports.processPayment = async (req, res) => {
     try {
-        const { winningBidAmount, customerId, sellerID } = data;
+        const { winningBidAmount, customerId, sellerID, auctionId } = req.body;
 
         const [customerDetails, sellerDetails] = await Promise.all([
             getDetails('customer', customerId),
@@ -129,29 +131,44 @@ exports.processPayment = async (data) => {
 
         if (!customerDetails || !sellerDetails) {
             console.log("Customer or seller details not found");
-            return;
+            return res.status(400).json({ isError: true, message: 'Customer or seller details not found' });
+
         }
 
         const { paymentmethod: customerPaymentMethodId, stripeid: customerStripeId } = customerDetails;
         const { stripeid: sellerStripeId } = sellerDetails;
 
-        const amountInCents = Math.round(winningBidAmount * 100);
-        const platformFeeInCents = Math.round(amountInCents * 0.05); // 5%
+        const paymentData = {
+            auctionId,
+            customerId,
+            sellerID,
+            winningBidAmount,
+            customerStripeId,
+            sellerStripeId,
+            customerPaymentMethodId
+        };
 
-        const paymentIntent = await stripe.paymentIntents.create({
-            amount: amountInCents,
-            currency: 'usd',
-            customer: customerStripeId,
-            payment_method_types: ['card'],
-            payment_method: customerPaymentMethodId,
-            transfer_data: { destination: sellerStripeId },
-            application_fee_amount: platformFeeInCents,
-            confirm: true,
-        });
+        // Generate a unique idempotency key for this payment
+        const idempotencyKey = `payment-${auctionId}-${customerId}-${Date.now()}`;
 
-        return { success: true, paymentIntentId: paymentIntent.id };
+        try {
+            const result = await PaymentRetryService.processPaymentWithRetry(paymentData, idempotencyKey);
+            return res.status(200).json({ isError: !result.success, message: result.message || (result.success !== true ? "Payment failed" : "Payment successful") });
+        } catch (error) {
+            console.error("Payment processing error:", error);
+
+            // If it's a retryable error and we haven't exceeded max retries
+            if (isRetryableError(error)) {
+                // Schedule a retry with initial delay
+                await PaymentRetryService.scheduleRetry(paymentData, 60000); // 1 minute delay
+                // return res.status(200).json({ isError: false, status: 'scheduled_retry', message: error.message });
+            }
+
+            return res.status(500).json({ isError: true, message: error.message });
+        }
     } catch (error) {
-        console.error("Payment processing error:", error);
-        return { success: false, error: error.message };
+        console.error("Payment setup error:", error);
+        // return { success: false, error: error.message };
+        return res.status(500).json({ isError: true, message: error.message });
     }
 };

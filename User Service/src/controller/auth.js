@@ -12,7 +12,7 @@ exports.saveUserAsSeller = async (data) => {
         `
         await Database.query(query, [userid])
     } catch (error) {
-        console.log("error while updating user as a seller ",error)
+        console.log("error while updating user as a seller ", error)
     }
 }
 
@@ -112,3 +112,67 @@ exports.handleRegistration = async (req, res) => {
     }
 };
 
+
+exports.getUserDetails = async (req, res) => {
+    try {
+        const userid = req.headers.userid;
+        const query = `SELECT pk, userid, phone, address, username, email, isseller, fullname, createdat, updateddat FROM users WHERE userid = $1`
+
+        const result = await Database.query(query, [userid]);
+        console.log("result of get user details ", result)
+        const user = result?.rows[0];
+
+        if (!user)
+            return res.status(400).json({
+                isError: true,
+                message: "Authentication failed. Please check your credentials.",
+            });
+
+        return res.status(200).json({
+            isError: false,
+            user
+        });
+
+
+    } catch (error) {
+        console.log(error)
+    }
+}
+
+exports.validateUserForPayment = async (req, res) => {
+    try {
+        const { username, password, userid } = req.body;
+
+        if (!username || !password || !userid)
+            return res.status(400).json({
+                isError: true,
+                message: "Authentication failed. Please check your credentials.",
+            });
+
+        // Fetch user details from the database
+        const query = `SELECT * FROM users WHERE username=$1 AND userid=$2 LIMIT 1`;
+        const result = await Database.query(query, [username, userid]);
+        const user = result?.rows[0];
+
+        // If user does not exist
+        if (!user) {
+            return res.status(400).json({
+                isError: true,
+                message: "Authentication failed. Please check your credentials.",
+            });
+        }
+
+        // Verify password
+        const isPasswordCorrect = await bcrypt.compare(password, user.password);
+        return res.status(200).json({
+            isError: !isPasswordCorrect,
+            isValidUser: isPasswordCorrect,
+            message: !isPasswordCorrect ? "Authentication failed. Please check your credentials." : "Authentication successful.",
+        });
+    } catch (error) {
+        return res.status(500).json({
+            isError: true,
+            message: "Something went wrong",
+        });
+    }
+}
